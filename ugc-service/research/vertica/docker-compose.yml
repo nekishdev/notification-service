@@ -1,0 +1,8 @@
+version: "3"
+
+services:
+  vertica:
+    image: jbfavre/vertica:latest
+    container_name: ugc_test_vertica__vertica
+    ports:
+      - '15433:5433'

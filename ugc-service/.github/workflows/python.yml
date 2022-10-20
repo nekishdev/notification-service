@@ -1,0 +1,81 @@
+name: Python application
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    types: [opened]
+    branches: [ main ]
+    
+jobs:
+  check_code:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.7", "3.8", "3.9"]
+        os: [ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install mypy
+        pip install flake8==4.0.1 flake8-html isort[colors] wemake-python-styleguide mypy lxml
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Run flake8
+      id: flake_step
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --format=html --htmldir=flake-report
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --format=html --htmldir=flake-report
+
+    - name: Run isort
+      id: isort_step
+      run: |
+        isort . --check-only --profile black --line-length 120
+
+    - name: Run mypy
+      id: mypy_step
+      run: |
+        mypy --install-types --ignore-missing-imports . --namespace-packages --explicit-package-bases --html-report mypy-report
+
+    - name: Send error message on fail
+      uses: appleboy/telegram-action@master
+      if: ${{ failure() }}
+      with:
+        to: ${{ secrets.TG_CHANNEL_ID }}
+        token: ${{ secrets.TG_BOT_TOKEN }}
+        message: |
+          Error in workflow "${{ github.workflow }}". Commit: ${{ github.event.head_commit.message }}. See description here ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  telegram_informer:
+    needs: [check_code]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send error message on fail
+        uses: appleboy/telegram-action@master
+        if: ${{ failure() }}
+        with:
+          to: ${{ secrets.TG_CHANNEL_ID }}
+          token: ${{ secrets.TG_BOT_TOKEN }}
+          message: |
+            Error in workflow "${{ github.workflow }}". Commit: ${{ github.event.head_commit.message }}. See description here ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Send message on success
+        uses: appleboy/telegram-action@master
+        if: ${{ success() }}
+        with:
+          to: ${{ secrets.TG_CHANNEL_ID }}
+          token: ${{ secrets.TG_BOT_TOKEN }}
+          message: |
+            Checking workflow "${{ github.workflow }}". Commit: ${{ github.event.head_commit.message }}. Completed successfull. No errors found

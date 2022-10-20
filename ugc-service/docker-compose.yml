@@ -1,0 +1,203 @@
+version: '3'
+
+services:
+      
+  ugc-etl:
+    container_name: ugc-etl
+    build: ./etl
+    env_file:
+      - ./etl/.env
+    environment:
+      ch_host: "ugc-clickhouse-node1"
+      ch_port: ${CH_LISTEN_TCP_PORT}
+      kafka_uri: '["${KAFKA_BROKER_URL}"]'
+    logging:
+      driver: gelf
+      options:
+        gelf-address: ${GELF_ADDRESS}
+        tag: ugc-etl
+    networks:
+      - backend
+
+  ugc-api:
+    container_name: ugc-api
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+      args:
+        - REQUIREMENTS_FILENAME=dev.txt
+        - EXPOSE_PORT=${API_LISTEN_PORT}
+    restart: always
+    volumes:
+      - ./api:/app
+    entrypoint: python app.py
+    env_file:
+      - ./api/.env
+    environment:
+      APP_HOST: ${API_LISTEN_HOST}
+      APP_PORT: ${API_LISTEN_PORT}
+      SWAGGER_HOST: "localhost:${API_LOCAL_PORT}"
+      KAFKA_BROKER_URL: ${KAFKA_BROKER_URL}
+      MONGO_DSN: "mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@ugc-mongo:${MONGO_CONTAINER_PORT}"
+      SENTRY_DSN: ${API_SENTRY_DSN}
+    ports:
+      - "${API_LOCAL_PORT}:${API_LISTEN_PORT}"
+    logging:
+      driver: gelf
+      options:
+        gelf-address: ${GELF_ADDRESS}
+        tag: ugc-api
+    networks:
+      - backend
+
+  ugc-mongo:
+    image: mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    ports:
+      - "${MONGO_LOCAL_PORT}:${MONGO_CONTAINER_PORT}"
+    logging:
+      driver: gelf
+      options:
+        gelf-address: ${GELF_ADDRESS}
+        tag: ugc-mongo
+    networks:
+      - backend
+
+  ugc-mongo-express:
+    image: mongo-express
+    restart: always
+    ports:
+      - "${ME_LOCAL_PORT}:${ME_CONTAINER_PORT}"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${ME_CONFIG_MONGODB_ADMINUSERNAME}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${ME_CONFIG_MONGODB_ADMINPASSWORD}
+      ME_CONFIG_MONGODB_URL: ${ME_CONFIG_MONGODB_URL}
+    logging:
+      driver: gelf
+      options:
+        gelf-address: ${GELF_ADDRESS}
+        tag: ugc-mongo-express
+    networks:
+      - backend
+
+  ugc-zookeeper:
+    image: confluentinc/cp-zookeeper:7.2.1
+    hostname: ugc-zookeeper
+    container_name: ugc-zookeeper
+    ports:
+      - "${ZOOKEEPER_LOCAL_PORT}:${ZOOKEEPER_CONTAINER_PORT}"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: ${ZOOKEEPER_CONTAINER_PORT}
+      ZOOKEEPER_TICK_TIME: 2000
+    logging:
+      driver: gelf
+      options:
+        gelf-address: ${GELF_ADDRESS}
+        tag: ugc-zookeeper
+    networks:
+      - backend
+
+  ugc-zookeeper_ch:
+    image: zookeeper:3.5
+    container_name: ugc-zookeeper_ch
+    hostname: ugc-zookeeper_ch
+    logging:
+      driver: gelf
+      options:
+        gelf-address: ${GELF_ADDRESS}
+        tag: ugc-zookeeper_ch
+    networks:
+      - backend
+
+  ugc-clickhouse-node1:
+    image: yandex/clickhouse-server:20.4
+    container_name: ugc-clickhouse-node1
+    hostname: ugc-clickhouse-node1
+    ports:
+      - "${CH_HTTP_LOCAL_PORT}:${CH_LISTEN_HTTP_PORT}"
+      - "${CH_TCP_LOCAL_PORT}:${CH_LISTEN_TCP_PORT}"
+    volumes:
+      - ./ch_conf/node1:/etc/clickhouse-server
+    depends_on:
+      - ugc-zookeeper_ch
+    logging:
+      driver: gelf
+      options:
+        gelf-address: ${GELF_ADDRESS}
+        tag: ugc-clickhouse-node1
+    networks:
+      - backend
+
+  ugc-broker:
+    image: confluentinc/cp-server:7.2.1
+    hostname: ugc-broker
+    container_name: ugc-broker
+    depends_on:
+      - ugc-zookeeper
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    expose:
+      - '9092'
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "ugc-zookeeper:${ZOOKEEPER_CONTAINER_PORT}"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${KAFKA_BROKER_URL},PLAINTEXT_HOST://localhost:9092
+      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_ADVERTISED_HOST_NAME: localhost
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://${KAFKA_SR_HOST_NAME}:${KAFKA_SR_CONTAINER_PORT}
+      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: ${KAFKA_BROKER_URL}
+      CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
+      CONFLUENT_METRICS_ENABLE: 'true'
+      CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
+      KAFKA_LOG_RETENTION_MINUTES: 5
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 60000
+    logging:
+      driver: gelf
+      options:
+        gelf-address: ${GELF_ADDRESS}
+        tag: ugc-broker
+    networks:
+      - backend
+
+#  filebeat:
+#    image: elastic/filebeat:7.10.1
+#    entrypoint: "filebeat -e -strict.perms=false"
+#    volumes:
+#      - nginx_log:/var/log/nginx:ro
+#      - ./deploy/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+#    depends_on:
+#      - nginx
+#      - logstash
+#      - elasticsearch
+#      - kibana
+#    links:
+#      - logstash
+#    logging:
+#      driver: gelf
+#      options:
+#        gelf-address: ${GELF_ADDRESS}
+#        tag: filebeat
+#
+
+
+
+#volumes:
+#  nginx_log:
+
+networks:
+  backend:
+    name: ${DOCKER_NETWORK_NAME}
+    external: true

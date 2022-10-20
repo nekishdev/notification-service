@@ -1,0 +1,91 @@
+version: '3'
+services:
+
+  auth-app:
+    container_name: ${COMPOSE_PROJECT_NAME}__dev_app
+    build:
+      context: ./app
+      args:
+        - REQUIREMENTS_FILENAME=dev.txt
+    env_file:
+      - ./app/.env
+    environment:
+      PROJECT_NAME: "${APP_PROJECT_NAME}"
+      APP_SECRET: "${APP_SECRET}"
+      APP_DEBUG: "${APP_DEBUG}"
+
+      APP_HOST: "${APP_HOST}"
+      APP_PORT: "${APP_CONTAINER_PORT}"
+
+      PG_DSN: "${APP_PG_DSN}"
+
+      REDIS_HOST: "auth-redis"
+      REDIS_PORT: "${REDIS_CONTAINER_PORT}"
+    entrypoint: ["python", "app.py"]
+    volumes:
+      - ./app:/app
+    ports:
+      - "${APP_LOCAL_PORT}:${APP_CONTAINER_PORT}"
+    depends_on:
+      - auth-postgres
+      - auth-redis
+    logging:
+      driver: gelf
+      options:
+        gelf-address: ${GELF_ADDRESS}
+        tag: auth-app
+    networks:
+      - backend
+
+  auth-postgres:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME}__dev_postgres
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+      PGDATA: ${DB_PG_CONTAINER_DATA}
+    restart: always
+    ports:
+      - "${DB_LOCAL_PORT}:${DB_CONTAINER_PORT}"
+    volumes:
+      - auth-postgres-data:${DB_PG_CONTAINER_DATA}
+    networks:
+      - backend
+
+  auth-redis:
+    build:
+      context: ./redis
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME}__dev_redis
+    restart: always
+    ports:
+      - "${REDIS_LOCAL_PORT}:${REDIS_CONTAINER_PORT}"
+    command: redis-server --save 20 1 --loglevel warning
+    volumes:
+      - auth-redis-data:/data
+    networks:
+      - backend
+
+  ########## General services ##########
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "6831:6831/udp"
+      - "16686:16686"
+    networks:
+      - backend
+
+networks:
+  backend:
+    name: ${DOCKER_NETWORK_NAME}
+    external: true
+
+
+volumes:
+  auth-postgres-data:
+    driver: local
+  auth-redis-data:
+    driver: local

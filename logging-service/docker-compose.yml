@@ -1,0 +1,52 @@
+version: '3'
+
+services:
+  logging-logstash:
+    image: logstash:7.10.1
+    depends_on:
+      - logging-elasticsearch
+    environment:
+      XPACK_MONITORING_ENABLED: "false"
+      ES_HOST: "logging-elasticsearch:${ES_CONTAINER_PORT}"
+      LOGSTASH_TCP_PORT: ${LOGSTASH_TCP_CONTAINER_PORT}
+      LOGSTASH_UDP_PORT: ${LOGSTASH_UDP_CONTAINER_PORT}
+    ports:
+      - "${LOGSTASH_TCP_LOCAL_PORT}:${LOGSTASH_TCP_CONTAINER_PORT}"
+      - "${LOGSTASH_UDP_LOCAL_PORT}:${LOGSTASH_UDP_CONTAINER_PORT}/udp"
+    volumes:
+      - ./logstash.conf:/config/logstash.conf:ro
+    command: logstash -f /config/logstash.conf
+    networks:
+      - backend
+
+
+  logging-elasticsearch:
+    image: elasticsearch:7.10.1
+    environment:
+      discovery.type: single-node
+    ports:
+      - "${ES_LOCAL_PORT}:${ES_CONTAINER_PORT}"
+    volumes:
+      - elastic_data_log:/usr/share/elasticsearch/data
+    networks:
+      - backend
+
+  logging-kibana:
+    image: kibana:7.10.1
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://logging-elasticsearch:${ES_CONTAINER_PORT}"]'
+    ports:
+      - "${KIBANA_LOCAL_PORT}:${KIBANA_CONTAINER_PORT}"
+    depends_on:
+      - logging-elasticsearch
+    networks:
+      - backend
+
+
+volumes:
+  elastic_data_log:
+
+networks:
+  backend:
+    name: ${DOCKER_NETWORK_NAME}
+    external: true

@@ -1,0 +1,126 @@
+version: '3'
+services:
+  film-admin:
+    container_name:  ${COMPOSE_PROJECT_NAME}__dev_admin
+    build: admin
+    env_file:
+      - ./admin/config/.env
+    environment:
+      DB_HOST: "film-postgres"
+      RUNSERVER_ADDRESS: "${APP_RUNSERVER_ADDRESS}:${APP_CONTAINER_PORT}"
+    entrypoint: ["/opt/runserver.sh"]
+    volumes:
+      - ./admin:/opt/app
+    expose:
+      - "${APP_CONTAINER_PORT}"
+    ports:
+      - "${APP_LOCAL_PORT}:${APP_CONTAINER_PORT}"
+    depends_on:
+      - film-postgres
+    networks:
+      - backend
+
+  film-api:
+    container_name:  ${COMPOSE_PROJECT_NAME}__dev_api
+    build: api
+    env_file: ./api/.env
+    environment:
+      FASTAPI_HOST: "${FASTAPI_HOST}"
+      FASTAPI_PORT: "${FASTAPI_CONTAINER_PORT}"
+
+      ELASTIC_HOST: "film-elasticsearch"
+      ELASTIC_PORT: "${ELASTIC_CONTAINER_PORT}"
+
+      REDIS_HOST: "film-redis"
+      REDIS_PORT: "${REDIS_CONTAINER_PORT}"
+    command: "python main.py"
+    volumes:
+      - ./api:/app
+    expose:
+      - "${FASTAPI_CONTAINER_PORT}"
+    ports:
+      - "${FASTAPI_LOCAL_PORT}:${FASTAPI_CONTAINER_PORT}"
+    depends_on:
+      - film-elasticsearch
+      - film-redis
+    networks:
+      - backend
+
+  film-postgres:
+    build:
+      context: ./db
+      dockerfile: Dockerfile
+    container_name:  ${COMPOSE_PROJECT_NAME}__dev_postgres
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+      PGDATA: ${DB_PG_CONTAINER_DATA}
+    restart: always
+    ports:
+      - "${DB_LOCAL_PORT}:${DB_CONTAINER_PORT}"
+    volumes:
+      - film-postgres-data:${DB_PG_CONTAINER_DATA}
+      - ./db/init:/docker-entrypoint-initdb.d
+    networks:
+      - backend
+
+  film-elasticsearch:
+    build:
+      context: ./es
+      dockerfile: Dockerfile
+    container_name:  ${COMPOSE_PROJECT_NAME}__dev_elasticsearch
+    environment:
+      discovery.type: "single-node"
+    restart: always
+    volumes:
+      - film-esdata:/usr/share/elasticsearch/data
+    ports:
+      - "${ELASTIC_LOCAL_PORT}:${ELASTIC_CONTAINER_PORT}"
+    networks:
+      - backend
+
+  film-redis:
+    image: redis:6.2-alpine
+    container_name:  ${COMPOSE_PROJECT_NAME}__dev_redis
+    restart: always
+    ports:
+      - "${REDIS_LOCAL_PORT}:${REDIS_CONTAINER_PORT}"
+    command: redis-server --save 20 1 --loglevel warning
+    volumes:
+      - film-redis-data:/data
+    networks:
+      - backend
+
+  film-etl:
+    build:
+      context: ./etl
+      dockerfile: Dockerfile
+    container_name:  ${COMPOSE_PROJECT_NAME}__dev_etl
+    env_file:
+      - ./etl/.env
+    environment:
+      PG_WAIT_HOST: "film-postgres"
+      PG_WAIT_PORT: "5432"
+
+      ELASTIC_HOST: "film-elasticsearch"
+      ELASTIC_PORT: "${ELASTIC_CONTAINER_PORT}"
+    restart: always
+    depends_on:
+      - film-postgres
+      - film-elasticsearch
+    networks:
+      - backend
+
+networks:
+  backend:
+    name: ${DOCKER_NETWORK_NAME}
+    external: true
+
+volumes:
+  film-postgres-data:
+    driver: local
+  film-esdata:
+    driver: local
+  film-redis-data:
+    driver: local

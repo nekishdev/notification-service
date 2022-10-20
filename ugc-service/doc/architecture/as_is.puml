@@ -1,0 +1,54 @@
+@startuml
+!include <C4/C4_Container>
+
+title Схема архитектуры решения AS IS
+
+
+
+Boundary(system_auth, "Сервис авторизации"){
+    Container(AuthApiGetaway  #7b6584, "ApiGetaway", "Container: Nginx",  "обеспечение роутинга, масштабирования и ускорения API-трафика, реализация политики Sticky session")
+    Container(AuthService, "Auth сервис", "Nginx, Flask", "Сервис авторизации пользователей кинотеатра. Обеспечивает регистрацию, управление токенами и ролями")
+    ContainerDb(Users, "БД пользователей", "PostgreSQL database", "Хранение логинов, паролей, истории входов")
+    ContainerDb(InvalidTokens #DDA0A0, "Невалидные токены", "Redis", "")
+}
+
+Boundary(adminPanel, "Панель администратора для работы с фильмами"){
+    Container(adminApiGetaway #7b6584, "adminApiGetaway", "Container: Nginx",  "обеспечение роутинга, масштабирования и ускорения API-трафика, реализация политики Sticky session")
+    Container(Django, "Django", "Nginx, Django", "Пользовательский интерфейс для редактирования информации о фильмах")
+    ContainerDb(Movies, "БД фильмов", "PostgreSQL database", "Хранение данных о фильмах в таблицах genre, person, film_work, person_film_work, genre_film_work")
+    Container(adminETL, "ETL process", '', "Перенос новых и измененных данных в базу данных с полнотекстовым поиском")
+}
+
+
+Boundary(asyncAPI, "Async API"){
+    Container(asynApiGetaway #7b6584, "asynApiGetaway", "Container: Nginx",  "обеспечение роутинга, масштабирования и ускорения API-трафика, реализация политики Sticky session")
+    Container(FilmService , "AsyncAPI ", "Nginx, FastAPI", "Поиск по фильмам, персонам, описание фильмов, персон, жанров")
+    ContainerDb(Redis_movies #DDA0A0, "Кэш описаний фильмов", "Redis", "Кэш для быстрого доступа к информации по фильмам и жанрам")
+    ContainerDb(ES_movies #AAFFAA;text:black, "БД описаний фильмов", "Elastic Search", "Полнотекстовый поиск по жанрам и описаниям фильмов")
+
+}
+
+actor "Пользователи админки" as AdminUsers
+
+actor "Пользователи кинотеатра" as AuthorizedCinemaUsers
+
+AuthService <-->  AuthApiGetaway  
+AuthApiGetaway  <--> AuthorizedCinemaUsers
+
+AuthService <-down-> InvalidTokens: проверка токена на валидность
+AuthService <--> Users: ""
+
+Django <--> Movies: контент
+
+Rel(adminETL, Movies, "extract")
+Rel(adminETL, ES_movies, "load")
+
+AdminUsers <-down-> adminApiGetaway 
+adminApiGetaway <-down-> Django
+AuthorizedCinemaUsers <-down-> asynApiGetaway 
+asynApiGetaway <-down->  FilmService : "https/json"
+
+FilmService <--> ES_movies: "2. Поиск в ES"
+FilmService <--> Redis_movies: "1. Поиск в кэше"
+
+@enduml

@@ -1,0 +1,32 @@
+@startuml
+!include <C4/C4_Container>
+
+title Архитектура разрабатываемого сервиса по нотации C4 на уровне (2) Контейнера для проекта Кинотеатр группы 10
+
+System(Analytic #5d5d5d, "Аналитическая система", "создание новых бизнес-идей")
+Person(Person #919d5d, "Пользователь", "генерирует контент")
+Container(ApiGetaway #7b6584, "ApiGetaway", "Container: Nginx",  "обеспечение роутинга, масштабирования и ускорения API-трафика, реализация политики Sticky session")
+Boundary(UGCService, "Сервис работы с UGC") {
+  Container(UGC_ETL #a05454, "UGC_ETL", "Container: Pipelines",  "перенаправляет из OLEP-баз в OLAP-системы")
+  Container(UGC_API, "UGC_API", "Container: AsyncAPI",  "прослойка кода в виде API, которая отправляет событие в OLEP")
+  ContainerDb(OLEP #e97637, "OLEP", "Container: Kafka", "временный буфер необработанных событий")
+  ContainerDb(OLAP #349b12, "OLAP", "Container: ClickHouse", "Сохраняет информацию о пользовательском контенте для дальнейшего анализа")
+  ContainerDb(DB #fff;text:black, "DB", "Container: Mongo" , "Сохраняет информацию о пользовательском контенте и  для генерации данных пользователю")
+
+}	
+
+Rel(Person, ApiGetaway, "передача данных") 
+
+Rel(ApiGetaway, UGC_API, "роутинг на сервис UGC") 
+
+Rel(UGC_API, OLEP, "отправка данных для аналитики")
+Rel(UGC_API, DB, "отправка / получение данных")
+Rel(DB, OLEP, "отправка данных для аналитики")
+
+Rel(UGC_ETL, OLEP, "экспортирует")
+
+Rel(UGC_ETL, OLAP, "загружает")
+
+Rel(Analytic, OLAP, "извлекаются данные для анализа")
+
+@enduml
