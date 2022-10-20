@@ -11,6 +11,7 @@ services:
       - ./app/.env
     environment:
       PROJECT_NAME: "${APP_PROJECT_NAME}"
+      SWAGGER_HOST: "localhost:${APP_LOCAL_PORT}"
       APP_SECRET: "${APP_SECRET}"
       APP_DEBUG: "${APP_DEBUG}"
 

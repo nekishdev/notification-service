@@ -5,6 +5,7 @@ from pydantic import BaseSettings, Field
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = Field(default='Auth service')
+    SWAGGER_HOST: str
     APP_SECRET: str = Field()
     APP_DEBUG: bool = Field(default=False)
 

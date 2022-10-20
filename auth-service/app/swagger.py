@@ -1,3 +1,5 @@
+from settings import settings
+
 swagger_spec = {
     "swagger": "2.0",
     "info": {
@@ -5,7 +7,7 @@ swagger_spec = {
         "description": "API for auth service",
         "version": "0.0.1"
     },
-    "host": "localhost:8086",
+    "host": settings.SWAGGER_HOST,
     "basePath": "/",
     "schemes": [
         "http",
