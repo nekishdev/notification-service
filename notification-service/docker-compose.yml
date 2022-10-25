@@ -1,0 +1,25 @@
+version: '3'
+services:
+
+  notification-rabbitmq:
+    build:
+      context: ./rabbitmq
+    container_name: ${COMPOSE_PROJECT_NAME}__dev_rabbitmq
+    ports:
+      - "${RABBITMQ_MESSAGES_LOCAL_PORT}:${RABBITMQ_MESSAGES_CONTAINER_PORT}"
+      - "${RABBITMQ_MANAGER_LOCAL_PORT}:${RABBITMQ_MANAGER_CONTAINER_PORT}"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./rabbitmq/log:/var/log/rabbitmq
+    networks:
+      - backend
+
+networks:
+  backend:
+    name: ${DOCKER_NETWORK_NAME}
+    external: true
+
+
+volumes:
+  rabbitmq-data:
+    driver: local
