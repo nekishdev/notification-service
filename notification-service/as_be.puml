@@ -1,0 +1,119 @@
+@startuml
+!include <C4/C4_Container>
+
+title Схема архитектуры решения AS BE
+
+actor "Админ" as AdminUsers
+
+actor "Пользователь" as CinemaUsers
+
+
+Boundary(ServiceEPK, "Единая политика контактов"){
+
+	Boundary(ServiceNotifyAdmin, "Админка ЕПК"){
+		Container(NotifyAdminGetaway #7b6584, "NotifyAdminGetaway", "Container: Nginx",  "обеспечение роутинга, масштабирования")
+
+		ContainerDb(DB_Notify, "БД Рассылок", "PostgreSQL", "Хранение данных о рассылках")
+		Container(NotifyAdmin, "Админка", "FastAPI", "API для админки")
+		Container(NotifyScheduler, "Scheduler", "Scheduler", "Отправка отложенных/периодических уведомлений")
+
+	}
+
+	Boundary(ServiceNotify, "Сервис нотификации"){
+		Container(NotifyApiGetaway #7b6584, "NotifyApiGetaway", "Container: Nginx",  "обеспечение роутинга, масштабирования и ускорения API-трафика")
+		Container(NotifyApi, "API нотификации", "Flask", "")
+		ContainerDb(NotifyMQ, "брокер сообщений", "RabbitMQ", "Обеспичивает сохранность сообщений")
+
+		Container(NotifyConsumer, "Consumer", "python/aio_pika", "Отправка сообщений")
+		Container(NotifySMTP, "", "SMTP", "")
+		Container(NotifySocket, "", "Socket", "")
+	}
+}
+CinemaUsers --> NotifyApiGetaway
+NotifyApiGetaway --> NotifyApi
+
+NotifyScheduler--> DB_Notify
+NotifyScheduler --> NotifyApiGetaway
+
+AdminUsers --> NotifyAdminGetaway
+NotifyAdminGetaway --> NotifyAdmin
+NotifyAdmin--> DB_Notify: загрузка и редактирование темплейтов и настроек
+
+
+NotifyApi --> NotifyMQ
+NotifyMQ <--> NotifyConsumer
+NotifyConsumer --> NotifySMTP
+NotifyConsumer --> NotifySocket
+
+Boundary(adminPanel, "Панель администратора для работы с фильмами"){
+    Container(adminGetaway #7b6584, "AdminGetaway", "Container: Nginx",  "обеспечение роутинга, масштабирования")
+    Container(Django, "Django", "Django", "Интерфейс для редактирования информации")
+    ContainerDb(Movies, "БД фильмов", "PostgreSQL", "Хранение данных о фильмах")
+    Container(adminETL, "ETL process", 'Python', "Перенос новых и измененных данных в ES DB")
+}
+
+
+
+Boundary(system_auth, "Сервис авторизации"){
+    Container(AuthApiGetaway  #7b6584, "AuthApiGetaway", "Container: Nginx",  "обеспечение роутинга, масштабирования и ускорения API-трафика")
+    Container(AuthService, "Auth API", "Flask", "Сервис авторизации пользователей кинотеатра. Обеспечивает регистрацию, управление токенами и ролями")
+    ContainerDb(Users, "БД пользователей", "PostgreSQL database", "Хранение логинов, паролей, истории входов")
+    ContainerDb(InvalidTokens #DDA0A0, "Невалидные токены", "Redis", "")
+}
+
+Boundary(asyncAPI, "Async API"){
+    Container(asynApiGetaway #7b6584, "asynApiGetaway", "Container: Nginx",  "обеспечение роутинга, масштабирования и ускорения API-трафика, реализация политики Sticky session")
+    Container(FilmService , "AsyncAPI ", "FastAPI", "Поиск по фильмам, персонам, описание фильмов, персон, жанров")
+    ContainerDb(Redis_movies #DDA0A0, "Кэш описаний фильмов", "Redis", "Кэш для быстрого доступа к информации по фильмам и жанрам")
+    ContainerDb(ES_movies #AAFFAA;text:black, "Посковый движок", "ElasticSearch", "Полнотекстовый поиск по жанрам и описаниям фильмов")
+}
+
+
+AuthService <-->  AuthApiGetaway
+AuthApiGetaway  <--> CinemaUsers
+
+AuthService <-down-> InvalidTokens: проверка токена на валидность
+AuthService <--> Users: ""
+
+Django --> Movies: загрузка и редактирование фильмов
+
+
+Rel(adminETL, Movies, "extract")
+Rel(adminETL, ES_movies, "load")
+
+AdminUsers <-down-> adminGetaway
+adminGetaway <-down-> Django
+CinemaUsers <-down-> asynApiGetaway
+asynApiGetaway <-down->  FilmService : "https/json"
+
+FilmService <--> ES_movies: "2. Поиск в ES"
+FilmService <--> Redis_movies: "1. Поиск в кэше"
+
+actor "Аналитическая система" as Analytic
+
+Boundary(UGCService, "Сервис работы с UGC") {
+  Container(UGC_ApiGetaway #7b6584, "UGC_ApiGetaway", "Container: Nginx",  "обеспечение роутинга, масштабирования и ускорения API-трафика, реализация политики Sticky session")
+
+  Container(UGC_ETL #a05454, "UGC_ETL", "Container: Pipelines",  "перенаправляет из OLEP-баз в OLAP-системы")
+  Container(UGC_API, "UGC_API", "Container: AsyncAPI",  "прослойка кода в виде API, которая отправляет событие в OLEP")
+  ContainerDb(OLEP #e97637, "OLEP", "Container: Kafka", "временный буфер необработанных событий")
+  ContainerDb(OLAP #349b12, "OLAP", "Container: ClickHouse", "Сохраняет информацию о пользовательском контенте для дальнейшего анализа")
+  ContainerDb(DB #fff;text:black, "DB", "Container: Mongo" , "Сохраняет информацию о пользовательском контенте и  для генерации данных пользователю")
+}
+
+Rel(CinemaUsers, UGC_ApiGetaway, "роутинг на сервис UGC")
+
+Rel(UGC_ApiGetaway , UGC_API, "роутинг на сервис UGC")
+
+Rel(UGC_API, OLEP, "отправка данных для аналитики")
+
+UGC_API<--> DB: "отправка / получение данных"
+
+Rel(DB, UGC_ETL, "экспортирует")
+
+Rel(OLEP, UGC_ETL, "экспортирует")
+
+Rel(UGC_ETL, OLAP, "загружает")
+
+Rel(Analytic, OLAP, "извлекаются данные для анализа")
+@enduml
