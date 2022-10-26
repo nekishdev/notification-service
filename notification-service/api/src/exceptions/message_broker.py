@@ -1,0 +1,2 @@
+class MessageIsNotAckedError(BaseException):
+    pass

@@ -14,6 +14,27 @@ services:
     networks:
       - backend
 
+  notification-api:
+    build:
+      context: ./api
+    container_name: ${COMPOSE_PROJECT_NAME}__dev_api
+    env_file:
+      - ./api/.env
+    environment:
+      FASTAPI_HOST: ${API_NOTIFICATION_LISTEN_HOST}
+      FASTAPI_PORT: ${API_NOTIFICATION_CONTAINER_PORT}
+      RABBITMQ_HOST: "notification-rabbitmq"
+      RABBITMQ_PORT: ${RABBITMQ_MESSAGES_CONTAINER_PORT}
+      RABBITMQ_USER: "guest"
+      RABBITMQ_PASSWORD: "guest"
+    command: python app.py
+    ports:
+      - "${API_NOTIFICATION_LOCAL_PORT}:${API_NOTIFICATION_CONTAINER_PORT}"
+    volumes:
+      - ./api:/app
+    networks:
+      - backend
+
 networks:
   backend:
     name: ${DOCKER_NETWORK_NAME}
