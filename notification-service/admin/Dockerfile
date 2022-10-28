@@ -12,18 +12,17 @@ RUN pip install --upgrade pip
 
 COPY ./requirements.txt .
 
-RUN pip install -r requirements.txt
-
+RUN pip install --upgrade pip \
+  && pip install --no-cache-dir -r requirements.txt
+  
 COPY ./src .
 
 ENV SECRET_KEY ./.env
 
-#RUN ["mkdir", "static"]
-
 RUN ["python", "manage.py", "collectstatic", "--no-input", "--clear"]
 
+COPY entrypoint.sh .
 
-ENTRYPOINT ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
+RUN chmod +x ./entrypoint.sh
 
-VOLUME /src/static
-
+ENTRYPOINT ["./entrypoint.sh"]

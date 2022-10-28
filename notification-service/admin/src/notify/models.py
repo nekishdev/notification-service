@@ -21,16 +21,6 @@ class TimeStampedMixin(models.Model):
         abstract = True
 
 
-class RecipientFilterChoices(models.TextChoices):
-    UUID = 'uuid'
-    EMAIL = 'email'
-
-
-class YesNoChoices(models.TextChoices):
-    YES = 'yes', _('yes')
-    NO = 'no', _('no')
-
-
 class RepeatChoices(models.TextChoices):
     ANNUALLY = 'annually', _('annually')
     MONTHLY = 'monthly', _('monthly')
@@ -64,8 +54,7 @@ class TemplatesBody(TimeStampedMixin, UUIDMixin):
     title = models.CharField(_('title'), max_length=255)
     content = models.TextField(_('text_template'))
     content_type = models.CharField(_('content_type'), max_length=255, choices=BodyTemplatesContentTypeChoices.choices)
-    description = models.TextField(_('description'), blank=True, null=True)
-    conversion_options = models.TextField(_('conversion_options'), blank=True, null=True)  # for PDF
+    context = models.JSONField(default=dict, blank=True, null=True)
 
     class Meta:
         db_table = 'notify"."templates_body'
@@ -80,28 +69,24 @@ class TemplatesBody(TimeStampedMixin, UUIDMixin):
 
 
 class Senders(TimeStampedMixin, UUIDMixin):
-    name = models.CharField(_('name'), max_length=255, db_index=False)
-    email = models.TextField(_('text_template'), db_index=False)
+    name = models.CharField(_('name'), max_length=255)
+    address = models.TextField(_('address'), max_length=255)
 
     class Meta:
         db_table = 'notify"."senders'
         verbose_name = _('sender')
         verbose_name_plural = _('senders')
 
+    def __str__(self):
+        return self.name
+
 
 class TemplatesNotify(TimeStampedMixin, UUIDMixin):
     title = models.CharField(_('title'), max_length=255, blank=True, null=True)
-    body = models.ForeignKey('TemplatesBody', on_delete=models.CASCADE, db_index=False, blank=True, null=True)
     theme = models.TextField(_('theme'), blank=True, null=True)
     notification_type = models.CharField(_('content_type'), max_length=255, blank=True, null=True,
                                          choices=NotificationTemplatesTypeChoices.choices)
     send_from = models.ForeignKey('Senders', on_delete=models.CASCADE, db_index=False, blank=True, null=True)
-    # TODO:  сделать таблицу на которую будет ссылаться recipient_filter с сопоставлениями фильтра и value
-    recipient_filter = models.CharField(_('recipient_filter'), max_length=255, blank=True, null=True,
-                                        choices=RecipientFilterChoices.choices)
-    repeat = models.CharField(_('repeat'), max_length=255, blank=True, null=True, choices=RepeatChoices.choices)
-    urgently = models.CharField(_('content_type'), max_length=255, blank=True, null=True, choices=YesNoChoices.choices)
-    scheduled_time = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         db_table = 'notify"."templates_notify'
@@ -112,24 +97,36 @@ class TemplatesNotify(TimeStampedMixin, UUIDMixin):
         return self.title
 
 
-class Recipients(TimeStampedMixin, UUIDMixin):
-    notification = models.ForeignKey('Notifications', on_delete=models.CASCADE)
-    recipient = models.CharField(_('recipient'), max_length=255, blank=True, null=True)
-    status_received = models.TextField(_('status_received'), blank=True, null=True)
-    is_read = models.CharField(_('is_read'), max_length=255, choices=YesNoChoices.choices)
-
-    class Meta:
-        db_table = 'notify"."recipients'
-        verbose_name = _('recipient')
-        verbose_name_plural = _('recipients')
-
-
 class Notifications(TimeStampedMixin, UUIDMixin):
-    notification_templates = models.ForeignKey('TemplatesNotify', on_delete=models.CASCADE, db_index=False)
-    status = models.CharField(_('status_received'), blank=True, null=True, max_length=255,
-                              choices=NotificationsStatusChoices.choices)
+    task = models.CharField(_('task'), max_length=255, blank=True, null=True)
+    body = models.ForeignKey('TemplatesBody', on_delete=models.CASCADE, db_index=False, blank=True, null=True)
+    notify = models.ForeignKey('TemplatesNotify', on_delete=models.CASCADE, db_index=False)
+    status = models.CharField(_('status'), blank=True, null=True,
+                              max_length=255,
+                              choices=NotificationsStatusChoices.choices,
+                              default=NotificationsStatusChoices.SCHEDULED,
+                              )
+    recipient_filter = models.JSONField(blank=False, null=False, default=dict(email="to@example.com"))
+    # repeat = models.CharField(_('repeat'), max_length=255, blank=True, null=True, choices=RepeatChoices.choices)
+    # urgently = models.BooleanField(_('urgently'), blank=True, null=True, default=False)
+    scheduled_time = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         db_table = 'notify"."notifications'
         verbose_name = _('notification')
         verbose_name_plural = _('notifications')
+
+    def __str__(self):
+        return self.task
+
+
+class Recipients(TimeStampedMixin, UUIDMixin):
+    notification = models.ForeignKey('Notifications', on_delete=models.CASCADE)
+    recipient = models.CharField(_('recipient'), max_length=255, blank=True, null=True)
+    status_received = models.BooleanField(_('status_received'), default=False)
+    is_read = models.BooleanField(_('is_read'), default=False)
+
+    class Meta:
+        db_table = 'notify"."recipients'
+        verbose_name = _('recipient')
+        verbose_name_plural = _('recipients')

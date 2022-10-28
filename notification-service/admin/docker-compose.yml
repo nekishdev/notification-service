@@ -17,6 +17,7 @@ services:
     image: postgres:13-alpine
     volumes:
       - $HOME/postgresql/data:/var/lib/postgresql/data/
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     env_file:
       - ./.env
     expose:
@@ -30,10 +31,12 @@ services:
       - 80:80
     volumes:
         - static_volume:/static
+        - media_volume:/media
     restart: always
     depends_on:
       - admin_notify
 
 volumes:
   static_volume:
+  media_volume:
   
