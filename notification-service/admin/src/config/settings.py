@@ -72,6 +72,7 @@ include(
     'components/database.py',
     # Password validation
     'components/password_validation.py',
+    'components/notification_api.py',
 )
 
 # https://docs.djangoproject.com/en/dev/ref/settings/#logging
@@ -99,7 +100,7 @@ LOGGING = {
 
 LANGUAGE_CODE = 'ru-RU'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Europe/Moscow'
 
 USE_I18N = True
 

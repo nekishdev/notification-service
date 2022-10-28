@@ -9,7 +9,7 @@ services:
       - "${RABBITMQ_MESSAGES_LOCAL_PORT}:${RABBITMQ_MESSAGES_CONTAINER_PORT}"
       - "${RABBITMQ_MANAGER_LOCAL_PORT}:${RABBITMQ_MANAGER_CONTAINER_PORT}"
     volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
+      - notification-rabbitmq-data:/var/lib/rabbitmq
       - ./rabbitmq/log:/var/log/rabbitmq
     networks:
       - backend
@@ -28,10 +28,68 @@ services:
       RABBITMQ_USER: "guest"
       RABBITMQ_PASSWORD: "guest"
     command: python app.py
+    restart: always
+    expose:
+      - ${API_NOTIFICATION_CONTAINER_PORT}
     ports:
       - "${API_NOTIFICATION_LOCAL_PORT}:${API_NOTIFICATION_CONTAINER_PORT}"
     volumes:
       - ./api:/app
+    networks:
+      - backend
+
+  notification-admin:
+    build: ./admin
+    container_name: ${COMPOSE_PROJECT_NAME}__dev_admin
+    volumes:
+      - ./admin/src:/src
+      - notification-admin-static:/app/static
+    command: python manage.py runserver
+    ports:
+      - "${API_ADMIN_LOCAL_PORT}:${API_ADMIN_CONTAINER_PORT}"
+    env_file:
+      - ./admin/.env
+    environment:
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_HOST: "notification-db"
+    depends_on:
+      - notification-db
+    networks:
+      - backend
+
+  notification-db:
+    build: ./db
+    container_name: ${COMPOSE_PROJECT_NAME}__dev_db
+    volumes:
+      - notification-postgres-data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+    expose:
+      - ${POSTGRES_CONTAINER_PORT}
+    ports:
+      - "${POSTGRES_LOCAL_PORT}:${POSTGRES_CONTAINER_PORT}"
+    networks:
+      - backend
+
+  notification-scheduler:
+    build: ./admin
+    container_name: ${COMPOSE_PROJECT_NAME}__dev_scheduler
+    env_file:
+      - ./admin/.env
+    environment:
+      NOTIFICATION_API_BASE_URL: "notification-api:${API_NOTIFICATION_CONTAINER_PORT}"
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_HOST: "notification-db"
+    command: python manage.py schedule
+    volumes:
+      - ./admin/src:/src
     networks:
       - backend
 
@@ -42,5 +100,9 @@ networks:
 
 
 volumes:
-  rabbitmq-data:
+  notification-rabbitmq-data:
+    driver: local
+  notification-postgres-data:
+    driver: local
+  notification-admin-static:
     driver: local

@@ -22,8 +22,6 @@ ENV SECRET_KEY ./.env
 
 RUN ["python", "manage.py", "collectstatic", "--no-input", "--clear"]
 
+ENTRYPOINT []
 
-ENTRYPOINT ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
-
-VOLUME /src/static
-
+CMD []
