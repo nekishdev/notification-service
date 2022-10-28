@@ -20,8 +20,17 @@ ENV SECRET_KEY ./.env
 
 #RUN ["mkdir", "static"]
 
+# Install netcat (nc)
+RUN apt-get -y update \
+    && apt-get install -y netcat
+
+COPY entrypoint.sh /opt/entrypoint.sh
+
+RUN sed -i 's/\r$//' /opt/entrypoint.sh \
+    && chmod +x /opt/entrypoint.sh
+
 RUN ["python", "manage.py", "collectstatic", "--no-input", "--clear"]
 
-ENTRYPOINT []
+ENTRYPOINT ["/opt/entrypoint.sh"]
 
 CMD []

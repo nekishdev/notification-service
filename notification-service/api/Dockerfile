@@ -48,4 +48,6 @@ COPY . .
 
 WORKDIR $APP_HOME/src
 
+ENTRYPOINT ["/opt/entrypoint.sh"]
+
 CMD []
