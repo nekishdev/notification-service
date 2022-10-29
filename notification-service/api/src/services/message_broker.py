@@ -6,7 +6,7 @@ from pamqp.commands import Basic
 from exceptions.message_broker import MessageIsNotAckedError
 from services.rmq import PikaClient
 from settings import settings
-from json import dumps
+
 
 class BaseMessageBroker(abc.ABC):
     @abc.abstractmethod
@@ -20,8 +20,7 @@ class RabbitMQMessageBroker(BaseMessageBroker):
         routing_key = settings.RABBITMQ_QUEUE_NAME
 
         result = await channel.default_exchange.publish(
-            aio_pika.Message(body=bytes(dumps(data), encoding='utf-8')),
-            # aio_pika.Message(body=f"Hello {routing_key}".encode()),
+            aio_pika.Message(body=f"Hello {routing_key}".encode()),
             routing_key=routing_key,
         )
 
