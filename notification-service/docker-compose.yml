@@ -95,6 +95,31 @@ services:
     networks:
       - backend
 
+  notification-consumer:
+    build:
+      context: ./consumer
+    container_name: ${COMPOSE_PROJECT_NAME}__dev_consumer
+    env_file:
+      - ./consumer/.env
+    environment:
+      RABBITMQ_HOST: "notification-rabbitmq"
+      RABBITMQ_PORT: ${RABBITMQ_MESSAGES_CONTAINER_PORT}
+      RABBITMQ_USER: "guest"
+      RABBITMQ_PASSWORD: "guest"
+
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_HOST: "notification-db"
+      DB_PORT: ${POSTGRES_CONTAINER_PORT}
+    command: python app.py
+    volumes:
+      - ./consumer/src:/src
+    networks:
+      - backend
+    depends_on:
+      - notification-rabbitmq
+
 networks:
   backend:
     name: ${DOCKER_NETWORK_NAME}

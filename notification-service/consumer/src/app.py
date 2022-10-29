@@ -2,21 +2,27 @@ import pika
 import sys
 import os
 
-from settings import settings
+from settings import settings, pg_settings, dsl
 
 from services.notification_service import EmailService
 from json import loads
 
-from models.notifications import NotificationSchema, User
+from models.notifications import NotificationSchema, User, Message
+from datetime import datetime, timezone
+from uuid import uuid4
+from data_load_service import pg_conn_context, save_message, set_message_status
+from postgres_saver import PostgresSaver
 
 
 def main():
+    print(settings.RABBITMQ_HOST)
     connection = pika.BlockingConnection(pika.ConnectionParameters(host=settings.RABBITMQ_HOST))
     channel = connection.channel()
 
     channel.queue_declare(queue=settings.RABBITMQ_QUEUE_NAME, durable=True)
 
     email_service = EmailService()
+
 
     def send_notification_callback(ch, method, properties, body):
         try:
@@ -28,14 +34,34 @@ def main():
                 title = ns.title or ''
                 text = ns.text
                 if ns.source == 'email':
-                    email_service.send_email_(user, title, text)
+                    dt = datetime.now(timezone.utc)
+                    try:
+                        msg = Message(
+                            id=uuid4(),
+                            created=dt,
+                            modified=dt,
+                            address=ns.address,
+                            source=ns.source,
+                            subject='subject',
+                            text=ns.text,
+                            send_at=dt,
+                            status='processing'
+                        )
+                        save_message(msg)
+                        email_service.send_email_(user, title, text)
+                        msg.status = 'success'
+                        msg.modified = datetime.now(timezone.utc)
+                        set_message_status(msg)
+                    except Exception as e:
+                        print('Error: ' + str(e) + ' body: ' + str(body))
 
         except Exception as e:
-            print('Error: ' + str(e))
+            print('Error: ' + str(e) + ' body: ' + str(body))
 
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
-    channel.basic_consume(queue=settings.RABBITMQ_QUEUE_NAME, on_message_callback=send_notification_callback, auto_ack=False)
+        channel.basic_consume(queue=settings.RABBITMQ_QUEUE_NAME, on_message_callback=send_notification_callback, auto_ack=False)
+
 
     print(' [*] Waiting for messages. To exit press CTRL+C')
     channel.start_consuming()

@@ -9,6 +9,8 @@ WORKDIR $APP_HOME
 
 COPY ./requirements.txt .
 
+RUN apt-get update && apt-get install libpq5 -y
+
 RUN pip install --upgrade pip \
     && pip wheel --no-cache-dir --no-deps --wheel-dir /wheels -r ./requirements.txt
 
@@ -22,6 +24,7 @@ ENV PYTHONUNBUFFERED 1
 
 WORKDIR $APP_HOME
 
+RUN apt-get update && apt-get install libpq5 -y
 # Install netcat (nc)
 RUN apt-get -y update \
     && apt-get install -y netcat
