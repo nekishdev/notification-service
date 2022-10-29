@@ -1,7 +1,5 @@
-from dataclasses import dataclass
-
-from psycopg2.extensions import connection as _connection
 from models.notifications import Message
+from psycopg2.extensions import connection as _connection
 
 
 class PostgresSaver:
@@ -14,18 +12,30 @@ class PostgresSaver:
     def insert_message(self, data: Message) -> None:
 
         insert_sql = """INSERT INTO notify.messages(id, created, modified, address, source, subject, text, send_at, status)
-         values(%s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+         values(%s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING"""
 
         curs = self.connection.cursor()
         try:
-            curs.execute(insert_sql, (str(data.id), data.created, data.modified, data.address, data.source, data.subject, data.text, data.send_at, data.status))
+            curs.execute(
+                insert_sql,
+                (
+                    str(data.id),
+                    data.created,
+                    data.modified,
+                    data.address,
+                    data.source,
+                    data.subject,
+                    data.text,
+                    data.send_at,
+                    data.status,
+                ),
+            )
 
             self.connection.commit()
 
         except Exception as error:
             if self.connection:
                 self.connection.rollback()
-            print(str(error))
             raise
 
         finally:
@@ -44,7 +54,6 @@ class PostgresSaver:
         except Exception as error:
             if self.connection:
                 self.connection.rollback()
-            print(str(error))
             raise
 
         finally:

@@ -112,7 +112,7 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_HOST: "notification-db"
       DB_PORT: ${POSTGRES_CONTAINER_PORT}
-    command: python app.py
+    command: python app_async.py
     volumes:
       - ./consumer/src:/src
     networks:
