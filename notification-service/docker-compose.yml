@@ -44,7 +44,6 @@ services:
     volumes:
       - ./admin/src:/src
       - notification-admin-static:/app/static
-    command: python manage.py runserver
     ports:
       - "${API_ADMIN_LOCAL_PORT}:${API_ADMIN_CONTAINER_PORT}"
     env_file:
