@@ -29,8 +29,6 @@ COPY entrypoint.sh /opt/entrypoint.sh
 RUN sed -i 's/\r$//' /opt/entrypoint.sh \
     && chmod +x /opt/entrypoint.sh
 
-RUN ["python", "manage.py", "collectstatic", "--no-input", "--clear"]
-
 ENTRYPOINT ["/opt/entrypoint.sh"]
 
-CMD []
+CMD gunicorn --bind 0.0.0.0:${APP_PORT} config.wsgi:application

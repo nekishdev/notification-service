@@ -44,12 +44,12 @@ services:
     volumes:
       - ./admin/src:/src
       - notification-admin-static:/app/static
-    command: python manage.py runserver
     ports:
       - "${API_ADMIN_LOCAL_PORT}:${API_ADMIN_CONTAINER_PORT}"
     env_file:
       - ./admin/.env
     environment:
+      APP_PORT: ${API_ADMIN_CONTAINER_PORT}
       DB_NAME: ${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}

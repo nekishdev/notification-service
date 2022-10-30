@@ -8,6 +8,7 @@ done
 
 echo "PostgreSQL started"
 
-python manage.py migrate
+python manage.py collectstatic --no-input --clear \
+  && python manage.py migrate
 
 exec "$@"
