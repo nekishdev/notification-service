@@ -7,8 +7,6 @@ class PostgresSaver:
         self.data = {}
         self.connection = connection
 
-        self.page_size = 100
-
     def insert_message(self, data: Message) -> None:
 
         insert_sql = """INSERT INTO notify.messages(id, created, modified, address, source, subject, text, send_at, status)

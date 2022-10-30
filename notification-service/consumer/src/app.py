@@ -6,11 +6,12 @@ from uuid import uuid4
 import pytz
 from aio_pika import connect
 from aio_pika.abc import AbstractIncomingMessage
-from data_load_service import pg_conn_context, save_message, set_message_status
+from services.worker_service import save_message, set_message_status
 from logger import app_logger
 from models.notifications import Message, NotificationSchema, User
 from services.notification_service import EmailService
 from settings import dsl, pg_settings, settings
+from services.mail_sender import MailHogSender, MailSender
 
 
 async def on_message(message: AbstractIncomingMessage) -> None:
@@ -45,8 +46,11 @@ async def on_message(message: AbstractIncomingMessage) -> None:
                 save_message(msg)
 
                 if ns.send_at is None or utc.localize(ns.send_at) <= dt:
-                    email_service = EmailService()
-                    email_service.send_email_(user, title, text)
+                    if settings.TESTING:
+                        email_service = EmailService(mail_sender=MailHogSender())
+                    else:
+                        email_service = EmailService(mail_sender=MailSender())
+                    email_service.send_email(user, title, text)
 
                     msg.status = "success"
                     msg.modified = datetime.now(timezone.utc)

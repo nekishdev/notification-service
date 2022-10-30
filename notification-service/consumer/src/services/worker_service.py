@@ -2,7 +2,7 @@ from contextlib import contextmanager
 
 import psycopg2
 from models.notifications import Message
-from postgres_saver import PostgresSaver
+from services.postgres_saver import PostgresSaver
 from psycopg2.extras import DictCursor
 from settings import dsl, pg_settings
 

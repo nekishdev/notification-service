@@ -112,13 +112,23 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_HOST: "notification-db"
       DB_PORT: ${POSTGRES_CONTAINER_PORT}
-    command: python app_async.py
+    command: python app.py
     volumes:
       - ./consumer/src:/src
     networks:
       - backend
     depends_on:
       - notification-rabbitmq
+
+  notification-mailhog:
+    image: mailhog/mailhog
+    logging:
+      driver: 'none'  # disable saving logs
+    ports:
+      - "${MAILHOG_PORT}:${MAILHOG_CONTAINER_PORT}"
+      - "${MAILHOG_WEBUI_PORT}:${MAILHOG_WEBUI_CONTAINER_PORT}"
+    networks:
+      - backend
 
 networks:
   backend:

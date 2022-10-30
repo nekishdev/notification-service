@@ -13,8 +13,8 @@ channel.queue_declare(queue=settings.RABBITMQ_QUEUE_NAME, durable=True)
 data = {
     "address": "nowar1@mail.ru",
     "source": "email",
-    "text": "Test message to User",
-    "send_at": "2022-10-29 10:30:00",
+    "text": "Test message to User 2 gdfgdfg",
+    "send_at": "2022-10-30 11:55:00",
 }
 
 dto = NotificationSchema(**data)

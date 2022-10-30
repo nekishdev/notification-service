@@ -1,27 +1,18 @@
-import smtplib
-from email.message import EmailMessage
-
 from models.notifications import User
-from settings import settings
+from services.mail_sender import AbstractSender
 
 
 class EmailService:
-    def send_email(self, message: EmailMessage) -> None:
-        server = smtplib.SMTP_SSL(settings.EMAIL_SERVER, settings.EMAIL_PORT)
-        server.login(settings.email_user, settings.email_password)
+    def __init__(self, mail_sender: AbstractSender) -> None:
+        self.mail_sender = mail_sender
 
-        server.sendmail(settings.email_user, [message["To"]], message.as_string())
-        server.close()
+    def send_email(self, user: User, subject: str, text: str) -> None:
+        self.mail_sender.send(user, subject, text)
 
-    def prepare_email_message(self, user: User, title: str, text: str) -> EmailMessage:
-        message = EmailMessage()
-        message["From"] = settings.email_user
-        message["To"] = ",".join([user.user_email])
-        message["Subject"] = title
 
-        message.add_alternative(text, subtype="html")
-        return message
+class TelegramService:
+    def __init__(self) -> None:
+        pass
 
-    def send_email_(self, user: User, title: str, text: str) -> None:
-        message = self.prepare_email_message(user, title, text)
-        self.send_email(message)
+    def send_email(self, user: User, subject: str, text: str) -> None:
+        pass
